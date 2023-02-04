@@ -1,0 +1,112 @@
+--1.    Guideline---------------
+
+--create tables 
+CREATE TABLE "users" ( 
+   "id" SERIAL PRIMARY KEY, 
+   "username" VARCHAR(25) UNIQUE NOT NULL, 
+   CONSTRAINT "usernames_must_have_name" CHECK (LENGTH(TRIM("username")) > 0), 
+   "loging_at" TIMESTAMP, 
+   "post_id" INTEGER); 
+
+CREATE TABLE "topics" (
+   "id" SERIAL PRIMARY KEY, 
+   "name" VARCHAR(30) NOT NULL, 
+   "description" VARCHAR(30),
+   "post_id" INTEGER);
+
+CREATE TABLE "posts" (
+   "id" SERIAL PRIMARY KEY,
+   "title" VARCHAR(100) UNIQUE NOT NULL,
+   "url" VARCHAR(4000),
+   "text_content" VARCHAR,
+   CONSTRAINT "either_url_or_text"
+       CHECK (((url IS NOT NULL AND text_content IS NULL)
+       OR (url IS NULL AND text_content IS NOT NULL))),
+   "created_at" TIMESTAMP,
+   "topic_id" INTEGER REFERENCES "topics" ("id") ON DELETE CASCADE,
+   "user_id" INTEGER REFERENCES "users" ("id") ON DELETE SET NULL);
+
+CREATE TABLE "comments" (
+   "id" SERIAL PRIMARY KEY,
+   "text_content" VARCHAR(10000) NOT NULL,
+   "user_id" INTEGER REFERENCES "users" ("id") ON DELETE SET NULL,
+   "post_id" INTEGER REFERENCES "posts" ("id") ON DELETE CASCADE,
+   "thread_id" INTEGER,
+   "thread_content" VARCHAR(4000));
+
+CREATE TABLE "votes" (
+   "id" SERIAL PRIMARY KEY,
+   "vote_value" SMALLINT CHECK ("vote_value" = 1 OR "vote_value" =-1),
+   "user_id" INTEGER REFERENCES "users" ("id") ON DELETE SET NULL,
+   "post_id" INTEGER REFERENCES "posts" ("id") ON DELETE SET NULL);
+
+--alter tables following requirements 
+--d.v.If a comment gets deleted, its descendants in the thread structure are deleted 
+ALTER TABLE "comments" 
+   ADD FOREIGN KEY ("thread_id") 
+   REFERENCES "comments" ("id") ON DELETE CASCADE; 
+
+--b.	List all users who haven’t created any post 
+ALTER TABLE "users" 
+   ADD FOREIGN KEY ("post_id") 
+   REFERENCES "posts" ("id"); 
+
+--d.	List all topics that don’t have any posts 
+ALTER TABLE "topics" 
+   ADD FOREIGN KEY ("post_id") 
+   REFERENCES "posts" ("id");
+
+--f.	List the latest 20 posts for a given topic 
+CREATE INDEX "find_posts_by_topic" ON "posts" ("topic_id"); 
+
+--g.	List the latest 20 posts made by a given user 
+CREATE INDEX "find_posts_by_user" ON "posts" ("user_id"); 
+
+--h.	Find all posts that link to a specific URL, for moderation purposes 
+CREATE INDEX "find_posts_by_url" ON "posts" ("url"); 
+
+--i.	List top-level comments (those that don’t have a parent comment) for a given post 
+CREATE INDEX "find_comments_by_post" ON "comments" ("post_id"); 
+
+--j.	List direct children of a parent comment 
+CREATE INDEX "find_threads_by_comment" ON "comments" ("thread_id"); 
+
+--k.	List the latest 20 comments made by a given user 
+CREATE INDEX "find_comments_by_user" ON "comments" ("user_id");
+
+--Part III: Migrate the provided data - migrate the data from the provided schema to your own schema 
+
+INSERT INTO "users" ("username") 
+   SELECT DISTINCT "username" 
+   FROM "bad_posts" --users who only posted 
+   UNION 
+   SELECT DISTINCT "username"
+   FROM "bad_comments" --users who only commented 
+   UNION
+   SELECT DISTINCT regexp_split_to_table("upvotes", ',') --users who only up-voted. Unwind the comma-separated votes values into separate rows
+   FROM "bad_posts" 
+   UNION 
+   SELECT DISTINCT regexp_split_to_table("downvotes", ',') --users who only down-voted. Unwind the comma-separated votes values into separate rows
+   FROM "bad_posts"; 
+
+INSERT INTO "posts" ("id", "title", "url","text_content")
+   SELECT "id", (LEFT(title,100)), "url","text_content" --c.i.Posts have a required title of at most 100 characters: apply a string function to the title 
+   FROM "bad_posts"; 
+
+INSERT INTO "comments" ("id", "post_id", "text_content")
+   SELECT "id", "post_id", "text_content"
+   FROM "bad_comments"; 
+
+INSERT INTO "topics" ("name") 
+   SELECT "topic" 
+   FROM "bad_posts";
+
+INSERT INTO "votes" ("vote_value")
+   SELECT "1" AS vote_value
+   FROM "bad_posts"
+   WHERE "upvotes" IS NOT NULL
+   UNION
+   SELECT "-1" AS vote_value
+   FROM "bad_posts"
+   WHERE "upvotes" IS NOT NULL;
+
