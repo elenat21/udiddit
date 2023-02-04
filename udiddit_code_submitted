@@ -11,7 +11,7 @@ CREATE TABLE "users" (
 CREATE TABLE "topics" (
    "id" SERIAL PRIMARY KEY, 
    "name" VARCHAR(30) NOT NULL, 
-   "description" VARCHAR(30),
+   "description" VARCHAR(500),
    "post_id" INTEGER);
 
 CREATE TABLE "posts" (
@@ -102,11 +102,11 @@ INSERT INTO "topics" ("name")
    FROM "bad_posts";
 
 INSERT INTO "votes" ("vote_value")
-   SELECT "1" AS vote_value
+   SELECT 1 AS vote_value
    FROM "bad_posts"
    WHERE "upvotes" IS NOT NULL
    UNION
-   SELECT "-1" AS vote_value
+   SELECT -1 AS vote_value
    FROM "bad_posts"
    WHERE "upvotes" IS NOT NULL;
 
