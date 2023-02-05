@@ -101,12 +101,19 @@ INSERT INTO "topics" ("name")
    SELECT "topic" 
    FROM "bad_posts";
 
-INSERT INTO "votes" ("vote_value")
-   SELECT 1 AS vote_value
-   FROM "bad_posts"
-   WHERE "upvotes" IS NOT NULL
-   UNION
-   SELECT -1 AS vote_value
-   FROM "bad_posts"
-   WHERE "upvotes" IS NOT NULL;
+INSERT INTO "votes" ("user_id", "post_id", "vote_value")
+   SELECT users.id AS user_id, t1.id AS post_id, 1 AS vote_value
+   FROM (
+   SELECT id, regexp_split_to_table (upvotes, ',') AS vote_from_username
+   FROM bad_posts
+   ) AS t1
+   JOIN users ON users.username = t1.vote_from_username
+UNION
+   SELECT users.id AS user_id, t2.id AS post_id, -1 AS vote_value
+   FROM (
+   SELECT id, regexp_split_to_table (downvotes, ',') AS vote_from_username
+   FROM bad_posts
+   ) AS t2
+JOIN users ON users.username = t2.vote_from_username;
+
 
